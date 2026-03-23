@@ -73,8 +73,9 @@ async def send_job_for_review(bot: Bot, chat_id: str, job: dict):
     )
 
 
-async def send_tailored_cv(bot: Bot, chat_id: str, job: dict, tailored_cv: dict, cv_path: str):
-    """Send the tailored CV after user approved."""
+async def send_tailored_cv(bot: Bot, chat_id: str, job: dict, tailored_cv: dict,
+                          cv_path: str, cover_letter_path: str = None):
+    """Send the tailored CV and cover letter after user approved."""
     match_score = tailored_cv.get("match_score", "?")
     match_analysis = tailored_cv.get("match_analysis", "N/A")
 
@@ -94,6 +95,14 @@ async def send_tailored_cv(bot: Bot, chat_id: str, job: dict, tailored_cv: dict,
                 chat_id=chat_id,
                 document=f,
                 caption=f"Tailored CV for: {job['title'][:200]}",
+            )
+
+    if cover_letter_path and Path(cover_letter_path).exists():
+        with open(cover_letter_path, "rb") as f:
+            await bot.send_document(
+                chat_id=chat_id,
+                document=f,
+                caption=f"Cover letter for: {job['title'][:200]}",
             )
 
 

@@ -34,6 +34,29 @@ def _job_id(url: str) -> str:
     return hashlib.md5(url.encode()).hexdigest()
 
 
+def _normalize_title(title: str) -> str:
+    """Normalize a title for duplicate detection."""
+    import re
+    t = title.lower().strip()
+    # Remove common suffixes like "- LinkedIn", "| Indeed", etc.
+    t = re.sub(r"\s*[-|–—]\s*(linkedin|indeed|glassdoor|jobs\.ch|jobup).*$", "", t)
+    # Remove extra whitespace
+    t = re.sub(r"\s+", " ", t)
+    return t
+
+
+def _is_duplicate(job_title: str, existing_jobs: list[dict]) -> bool:
+    """Check if a job is a duplicate of one already found (same role, different board)."""
+    from difflib import SequenceMatcher
+    norm = _normalize_title(job_title)
+    for existing in existing_jobs:
+        existing_norm = _normalize_title(existing["title"])
+        ratio = SequenceMatcher(None, norm, existing_norm).ratio()
+        if ratio > 0.85:
+            return True
+    return False
+
+
 def _relevance_score(title: str, text: str) -> int:
     """Score a job posting's relevance. Higher is better. Negative means skip."""
     content = (title + " " + text).lower()
@@ -89,6 +112,10 @@ def search_jobs(exa_api_key: str, days_back: int = 7) -> list[dict]:
 
                 score = _relevance_score(title, text + highlights)
                 if score < 0:
+                    continue
+
+                # Skip duplicates (same job on different boards)
+                if _is_duplicate(title, new_jobs):
                     continue
 
                 job = {

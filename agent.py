@@ -3,7 +3,7 @@
 Job Monitor Agent for Alena Nikolskaia
 
 Runs as a Telegram bot. Periodically searches for jobs, sends them with
-Yes/No buttons. Only tailors CV when user taps "Yes".
+Yes/No buttons. Only tailors CV + cover letter when user taps "Yes".
 
 Usage:
     python agent.py          # Start the bot (runs continuously)
@@ -32,6 +32,8 @@ from config import MIN_RELEVANCE_SCORE
 from job_search import search_jobs
 from cv_tailor import tailor_cv
 from cv_generator import generate_cv_docx
+from cover_letter import generate_cover_letter, generate_cover_letter_docx
+from job_history import record_decision, get_history, get_stats, export_csv
 from telegram_notify import (
     send_job_for_review,
     send_tailored_cv,
@@ -105,6 +107,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if action == "no":
+        record_decision(job, "skipped")
         remove_pending_job(job_id)
         await query.edit_message_text(
             text=f"⏭ <b>Skipped:</b> {job['title']}",
@@ -113,30 +116,45 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"Skipped: {job['title']}")
         return
 
-    # User said YES — tailor CV
+    # User said YES — tailor CV + generate cover letter
     await query.edit_message_reply_markup(reply_markup=None)
     await send_status(
         context.bot, TG_CHAT_ID,
-        f"⏳ Tailoring CV for: <b>{job['title']}</b>\nThis takes ~30 seconds..."
+        f"⏳ Tailoring CV & cover letter for: <b>{job['title']}</b>\nThis takes ~60 seconds..."
     )
 
     tailored = tailor_cv(ANTHROPIC_KEY, job)
 
     cv_path = None
+    cl_path = None
+    match_score = None
+
     if tailored:
+        match_score = tailored.get("match_score")
+
         try:
             cv_path = generate_cv_docx(tailored, job["title"], job["url"])
             logger.info(f"CV generated: {cv_path}")
         except Exception as e:
             logger.error(f"CV generation failed: {e}")
 
-        await send_tailored_cv(context.bot, TG_CHAT_ID, job, tailored, cv_path)
+        # Generate cover letter
+        try:
+            cl_data = generate_cover_letter(ANTHROPIC_KEY, job)
+            if cl_data:
+                cl_path = generate_cover_letter_docx(cl_data, job["title"])
+                logger.info(f"Cover letter generated: {cl_path}")
+        except Exception as e:
+            logger.error(f"Cover letter generation failed: {e}")
+
+        await send_tailored_cv(context.bot, TG_CHAT_ID, job, tailored, cv_path, cl_path)
     else:
         await send_status(
             context.bot, TG_CHAT_ID,
             f"⚠️ CV tailoring failed for: {job['title']}. Please try again later."
         )
 
+    record_decision(job, "approved", match_score)
     remove_pending_job(job_id)
 
 
@@ -153,7 +171,9 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "and send them to you for review.\n\n"
         "<b>Commands:</b>\n"
         "/search - Search for new positions now\n"
-        "/status - Show bot status\n\n"
+        "/status - Show bot status\n"
+        "/history - Recent job decisions\n"
+        "/export - Export job history as CSV\n\n"
         f"Auto-search runs every {CHECK_INTERVAL} hours.",
         parse_mode="HTML",
     )
@@ -168,13 +188,54 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if PENDING_JOBS_FILE.exists():
         pending = json.loads(PENDING_JOBS_FILE.read_text())
 
+    stats = get_stats()
+
     await update.message.reply_text(
         f"📊 <b>Bot Status</b>\n\n"
         f"Pending reviews: {len(pending)}\n"
         f"Auto-search interval: every {CHECK_INTERVAL}h\n"
-        f"Time now: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        f"Time now: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
+        f"<b>History:</b>\n"
+        f"Total jobs reviewed: {stats['total']}\n"
+        f"Approved: {stats['approved']} | Skipped: {stats['skipped']}\n"
+        f"Approval rate: {stats['approval_rate']}",
         parse_mode="HTML",
     )
+
+
+async def cmd_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /history command — show recent job decisions."""
+    history = get_history(limit=15)
+
+    if not history:
+        await update.message.reply_text("No job history yet. Use /search to find positions.")
+        return
+
+    lines = ["📜 <b>Recent Job Decisions</b>\n"]
+    for entry in reversed(history):
+        icon = "✅" if entry["decision"] == "approved" else "⏭"
+        score_str = f" (match: {entry['match_score']}%)" if entry.get("match_score") else ""
+        date = entry["decided_at"][:10]
+        lines.append(f"{icon} <b>{entry['title'][:60]}</b>{score_str}\n   {date}")
+
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+
+async def cmd_export(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /export command — export job history as CSV."""
+    path = export_csv()
+    if not path:
+        await update.message.reply_text("No job history to export yet.")
+        return
+
+    from pathlib import Path
+    with open(path, "rb") as f:
+        await context.bot.send_document(
+            chat_id=update.effective_chat.id,
+            document=f,
+            caption="📊 Job application history",
+            filename="job_applications.csv",
+        )
 
 
 async def scheduled_search(context: ContextTypes.DEFAULT_TYPE):
@@ -193,6 +254,8 @@ def main():
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("search", cmd_search))
     app.add_handler(CommandHandler("status", cmd_status))
+    app.add_handler(CommandHandler("history", cmd_history))
+    app.add_handler(CommandHandler("export", cmd_export))
     app.add_handler(CallbackQueryHandler(handle_button))
 
     # Schedule periodic searches

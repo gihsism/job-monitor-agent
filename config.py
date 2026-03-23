@@ -13,6 +13,14 @@ SEARCH_QUERIES = [
     "product manager LLM AI Zurich",
 ]
 
+# Secondary queries — broader/remote roles (lower priority in results)
+SECONDARY_QUERIES = [
+    "AI product manager remote Europe",
+    "product manager AI fintech remote",
+    "product manager artificial intelligence finance remote Switzerland",
+    "AI product owner accounting remote",
+]
+
 # Domains to search on
 JOB_DOMAINS = [
     "linkedin.com",

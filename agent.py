@@ -167,8 +167,9 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command."""
     await update.message.reply_text(
         "👋 <b>Job Monitor Bot</b>\n\n"
-        "I search for AI Product Manager positions in the Zurich area "
-        "and send them to you for review.\n\n"
+        "I search for positions across two tracks:\n"
+        "🎯 <b>Track 1:</b> AI Product Manager roles (finance/accounting/audit + AI)\n"
+        "🏢 <b>Track 2:</b> Accounting/finance roles at big AI/tech companies\n\n"
         "<b>Commands:</b>\n"
         "/search - Search for new positions now\n"
         "/status - Show bot status\n"

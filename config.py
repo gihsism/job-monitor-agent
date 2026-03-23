@@ -2,23 +2,52 @@
 
 # === JOB SEARCH CRITERIA ===
 
-# Search queries focused on Zurich and neighboring areas
+# === TRACK 1: AI Product Manager at the intersection of finance/accounting/audit ===
 SEARCH_QUERIES = [
+    # AI PM — Zurich area
     "AI product manager Zurich",
     "product manager artificial intelligence Zurich Switzerland",
     "product manager AI finance accounting Zurich",
     "AI product owner fintech Zurich",
-    "senior product manager AI Zurich Basel Bern Winterthur",
+    "senior product manager AI Zurich Basel Bern Winterthur Zug",
     "product manager machine learning Zurich Switzerland",
     "product manager LLM AI Zurich",
+    # AI PM — finance/audit intersection
+    "product manager AI finance",
+    "product manager AI accounting audit",
+    "product manager AI fintech banking",
+    "product manager AI regulatory compliance finance",
+    "product manager AI ERP financial systems",
 ]
 
-# Secondary queries — broader/remote roles (lower priority in results)
+# === TRACK 2: Accounting/finance roles at big AI/tech companies ===
 SECONDARY_QUERIES = [
+    # Accounting at AI companies
+    "accountant Anthropic",
+    "accounting manager Anthropic",
+    "finance manager Anthropic",
+    "accountant Mistral AI",
+    "finance Mistral AI",
+    "accounting manager OpenAI",
+    "finance manager OpenAI",
+    "accountant Google DeepMind",
+    "accounting Google AI Zurich",
+    "finance manager Google Zurich",
+    "accountant Meta AI Zurich",
+    "accounting Apple Zurich",
+    "finance controller Microsoft AI Zurich",
+    "accountant NVIDIA Zurich Switzerland",
+    "accounting manager Amazon AWS Zurich",
+    # Broader AI/tech company accounting roles
+    "senior accountant AI startup Switzerland",
+    "finance controller AI company Europe",
+    "accounting manager tech startup Zurich",
+    "IFRS accountant tech company Zurich",
+    "financial reporting manager AI company",
+    # AI PM remote
     "AI product manager remote Europe",
     "product manager AI fintech remote",
-    "product manager artificial intelligence finance remote Switzerland",
-    "AI product owner accounting remote",
+    "product manager artificial intelligence finance remote",
 ]
 
 # Domains to search on
@@ -37,15 +66,22 @@ JOB_DOMAINS = [
     "wellfound.com",
 ]
 
-# Keywords that MUST appear in relevant results
-MUST_HAVE_KEYWORDS = ["product"]
+# A job must match at least one of these keyword groups (OR between groups, any keyword in group matches)
+# Track 1: PM roles | Track 2: accounting/finance roles
+MUST_HAVE_KEYWORD_GROUPS = [
+    ["product manager", "product owner", "product lead", "product management"],
+    ["accountant", "accounting", "controller", "financial reporting", "finance manager",
+     "finance director", "CFO", "audit", "IFRS", "GAAP"],
+]
 
 # Keywords that boost relevance score
 BOOST_KEYWORDS = [
-    "AI", "artificial intelligence", "machine learning", "LLM",
-    "finance", "accounting", "fintech", "financial",
+    "AI", "artificial intelligence", "machine learning", "LLM", "deep learning",
+    "finance", "accounting", "fintech", "financial", "audit", "IFRS", "GAAP",
     "product manager", "product owner", "product lead",
-    "Zurich", "Zürich", "Basel", "Bern", "Winterthur", "Zug",
+    "Zurich", "Zürich", "Basel", "Bern", "Winterthur", "Zug", "Switzerland",
+    "Anthropic", "Mistral", "OpenAI", "DeepMind", "Google", "Meta", "NVIDIA",
+    "Apple", "Microsoft", "Amazon",
 ]
 
 # Keywords that reduce relevance

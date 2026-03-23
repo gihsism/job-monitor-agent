@@ -12,7 +12,7 @@ from config import (
     SEARCH_QUERIES,
     SECONDARY_QUERIES,
     JOB_DOMAINS,
-    MUST_HAVE_KEYWORDS,
+    MUST_HAVE_KEYWORD_GROUPS,
     BOOST_KEYWORDS,
     NEGATIVE_KEYWORDS,
 )
@@ -61,10 +61,14 @@ def _relevance_score(title: str, text: str) -> int:
     """Score a job posting's relevance. Higher is better. Negative means skip."""
     content = (title + " " + text).lower()
 
-    # Must-have check
-    for kw in MUST_HAVE_KEYWORDS:
-        if kw.lower() not in content:
-            return -1
+    # Must match at least one keyword group (PM track OR accounting track)
+    matched_any_group = False
+    for group in MUST_HAVE_KEYWORD_GROUPS:
+        if any(kw.lower() in content for kw in group):
+            matched_any_group = True
+            break
+    if not matched_any_group:
+        return -1
 
     # Negative keywords check
     for kw in NEGATIVE_KEYWORDS:

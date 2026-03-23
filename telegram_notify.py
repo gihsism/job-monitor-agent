@@ -46,13 +46,15 @@ async def send_job_for_review(bot: Bot, chat_id: str, job: dict):
     text = job.get("text", "")
     preview = text[:800] + "..." if len(text) > 800 else text
 
+    track = "🎯 AI/PM" if job.get("is_primary") else "🏢 Accounting @ Tech"
+
     message = (
-        f"🔔 <b>New Position Found</b>\n\n"
+        f"🔔 <b>New Position Found</b>  [{track}]\n\n"
         f"<b>{job['title']}</b>\n\n"
         f"🔗 {job['url']}\n\n"
         f"📊 Relevance: {job['score']}\n\n"
         f"<b>Preview:</b>\n{preview}\n\n"
-        f"<i>Interested? I'll tailor your CV for this role.</i>"
+        f"<i>Interested? I'll tailor your CV + cover letter for this role.</i>"
     )
 
     keyboard = InlineKeyboardMarkup([

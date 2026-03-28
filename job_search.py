@@ -11,7 +11,8 @@ from exa_py import Exa
 from config import (
     SEARCH_QUERIES,
     SECONDARY_QUERIES,
-    JOB_DOMAINS,
+    JOB_BOARD_DOMAINS,
+    EXCLUDE_DOMAINS,
     MUST_HAVE_KEYWORD_GROUPS,
     BOOST_KEYWORDS,
     NEGATIVE_KEYWORDS,
@@ -108,8 +109,13 @@ def _relevance_score(title: str, text: str) -> int:
     return score
 
 
-def search_jobs(exa_api_key: str, days_back: int = 7) -> list[dict]:
-    """Search for relevant jobs using Exa API. Returns list of new job dicts."""
+def search_jobs(exa_api_key: str, days_back: int = 30) -> list[dict]:
+    """Search for relevant jobs using Exa API. Returns list of new job dicts.
+
+    Runs two passes per query:
+    1. Job board domains only — high-quality job postings
+    2. Open search (excluding blogs/news) — catches company career pages
+    """
     exa = Exa(api_key=exa_api_key)
     seen = _load_seen_jobs()
     new_jobs = []
@@ -119,65 +125,71 @@ def search_jobs(exa_api_key: str, days_back: int = 7) -> list[dict]:
     all_queries = [(q, True) for q in SEARCH_QUERIES] + [(q, False) for q in SECONDARY_QUERIES]
 
     for query, is_primary in all_queries:
-        try:
-            search_kwargs = dict(
-                query=query,
-                num_results=10,
-                start_published_date=start_date,
-                text={"max_characters": 5000},
-                highlights={"num_sentences": 5},
-            )
-            if JOB_DOMAINS:
-                search_kwargs["include_domains"] = JOB_DOMAINS
+        # Pass 1: Search job boards only
+        # Pass 2: Open search excluding blogs/news
+        search_configs = [
+            {"include_domains": JOB_BOARD_DOMAINS, "num_results": 5},
+            {"exclude_domains": EXCLUDE_DOMAINS, "num_results": 5},
+        ]
 
-            results = exa.search_and_contents(**search_kwargs)
+        for config in search_configs:
+            try:
+                search_kwargs = dict(
+                    query=query,
+                    start_published_date=start_date,
+                    text={"max_characters": 5000},
+                    highlights={"num_sentences": 5},
+                    **config,
+                )
 
-            for result in results.results:
-                jid = _job_id(result.url)
-                if jid in seen:
-                    continue
+                results = exa.search_and_contents(**search_kwargs)
 
-                title = result.title or ""
+                for result in results.results:
+                    jid = _job_id(result.url)
+                    if jid in seen:
+                        continue
 
-                # Skip profiles, CVs, and news articles
-                if _is_profile_page(result.url, title):
-                    continue
+                    title = result.title or ""
 
-                text = result.text or ""
-                highlights = ""
-                if hasattr(result, "highlights") and result.highlights:
-                    highlights = " ".join(result.highlights)
+                    # Skip profiles, CVs, and news articles
+                    if _is_profile_page(result.url, title):
+                        continue
 
-                score = _relevance_score(title, text + highlights)
-                if score < 0:
-                    continue
+                    text = result.text or ""
+                    highlights = ""
+                    if hasattr(result, "highlights") and result.highlights:
+                        highlights = " ".join(result.highlights)
 
-                # Skip duplicates (same job on different boards)
-                if _is_duplicate(title, new_jobs):
-                    continue
+                    score = _relevance_score(title, text + highlights)
+                    if score < 0:
+                        continue
 
-                job = {
-                    "id": jid,
-                    "title": title,
-                    "url": result.url,
-                    "text": text[:3000],
-                    "highlights": highlights[:1000],
-                    "score": score,
-                    "is_primary": is_primary,
-                    "query": query,
-                    "found_at": datetime.now().isoformat(),
-                }
+                    # Skip duplicates (same job on different boards)
+                    if _is_duplicate(title, new_jobs):
+                        continue
 
-                new_jobs.append(job)
-                seen[jid] = {
-                    "title": title,
-                    "url": result.url,
-                    "found_at": job["found_at"],
-                }
+                    job = {
+                        "id": jid,
+                        "title": title,
+                        "url": result.url,
+                        "text": text[:3000],
+                        "highlights": highlights[:1000],
+                        "score": score,
+                        "is_primary": is_primary,
+                        "query": query,
+                        "found_at": datetime.now().isoformat(),
+                    }
 
-        except Exception as e:
-            print(f"[WARN] Search failed for query '{query}': {e}")
-            continue
+                    new_jobs.append(job)
+                    seen[jid] = {
+                        "title": title,
+                        "url": result.url,
+                        "found_at": job["found_at"],
+                    }
+
+            except Exception as e:
+                print(f"[WARN] Search failed for query '{query}': {e}")
+                continue
 
     _save_seen_jobs(seen)
 

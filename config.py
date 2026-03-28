@@ -47,8 +47,37 @@ SECONDARY_QUERIES = [
     "Controller AI company Europe. Financial reporting. Requirements:",
 ]
 
-# Domains to search on (empty = search everywhere, Exa finds best results on job boards)
-# LinkedIn doesn't work well with Exa (returns posts/articles, not job listings)
+# Primary domains: actual job boards where Exa finds real postings
+# These are searched first; then a second open search catches company career pages
+JOB_BOARD_DOMAINS = [
+    "greenhouse.io", "boards.greenhouse.io", "job-boards.greenhouse.io",
+    "lever.co", "jobs.lever.co",
+    "myworkdayjobs.com",
+    "jobs.ch", "jobup.ch", "indeed.ch", "indeed.com",
+    "wellfound.com",
+    "glassdoor.com",
+    "join.com",
+    "talantix.io",
+    "euremotejobs.com",
+    "flexionis.wuaze.com",
+    "thesaraslist.com",
+    "hiredock.com",
+    "hubmub.com",
+    "ceruleanjobs.com",
+    "bulldogjob.com",
+    "fintechcareers.com",
+    "rocken.jobs",
+]
+
+# Domains to exclude (blogs, news, courses — not job postings)
+EXCLUDE_DOMAINS = [
+    "medium.com", "substack.com", "arxiv.org",
+    "youtube.com", "reddit.com", "twitter.com",
+    "wikipedia.org", "coursera.org", "udemy.com",
+    "linkedin.com",  # Exa can't index LinkedIn job pages
+]
+
+# Legacy — kept for backward compatibility
 JOB_DOMAINS = []
 
 # A job must match at least one of these keyword groups (OR between groups)

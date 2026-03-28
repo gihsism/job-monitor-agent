@@ -28,8 +28,9 @@ from telegram.ext import (
 
 load_dotenv()
 
-from config import MIN_RELEVANCE_SCORE
+from config import MIN_RELEVANCE_SCORE, MIN_MATCH_SCORE
 from job_search import search_jobs
+from job_screener import screen_job
 from cv_tailor import tailor_cv
 from cv_generator import generate_cv_docx
 from cover_letter import generate_cover_letter, generate_cover_letter_docx
@@ -72,7 +73,7 @@ async def do_search(bot: Bot):
     await send_status(bot, TG_CHAT_ID, "🔍 <b>Searching for new positions...</b>")
 
     jobs = search_jobs(EXA_KEY)
-    # Filter to best matches only
+    # Basic keyword filter
     jobs = [j for j in jobs if j["score"] >= MIN_RELEVANCE_SCORE]
 
     if not jobs:
@@ -82,15 +83,42 @@ async def do_search(bot: Bot):
 
     await send_status(
         bot, TG_CHAT_ID,
-        f"📋 Found <b>{len(jobs)}</b> new position(s). Sending for your review..."
+        f"🔍 Found <b>{len(jobs)}</b> job postings. Screening with AI (≥{MIN_MATCH_SCORE}% match)..."
     )
 
+    # AI screening — score each job against profile
+    matched_jobs = []
     for job in jobs:
+        result = screen_job(ANTHROPIC_KEY, job)
+        job["match_score"] = result["score"]
+        job["match_reason"] = result["reason"]
+        logger.info(f"Screened: {result['score']}% — {job['title'][:60]}")
+
+        if result["score"] >= MIN_MATCH_SCORE:
+            matched_jobs.append(job)
+
+    if not matched_jobs:
+        await send_status(
+            bot, TG_CHAT_ID,
+            f"😴 Screened {len(jobs)} positions but none matched ≥{MIN_MATCH_SCORE}%. "
+            f"Best was {max(j['match_score'] for j in jobs)}%."
+        )
+        logger.info("No jobs passed AI screening.")
+        return
+
+    matched_jobs.sort(key=lambda j: -j["match_score"])
+
+    await send_status(
+        bot, TG_CHAT_ID,
+        f"📋 <b>{len(matched_jobs)}</b> position(s) matched ≥{MIN_MATCH_SCORE}%. Sending for review..."
+    )
+
+    for job in matched_jobs:
         save_pending_job(job)
         await send_job_for_review(bot, TG_CHAT_ID, job)
         await asyncio.sleep(1)  # avoid rate limits
 
-    logger.info(f"Sent {len(jobs)} jobs for review.")
+    logger.info(f"Sent {len(matched_jobs)} jobs for review (from {len(jobs)} screened).")
 
 
 async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):

@@ -15,6 +15,8 @@ from config import (
     MUST_HAVE_KEYWORD_GROUPS,
     BOOST_KEYWORDS,
     NEGATIVE_KEYWORDS,
+    PROFILE_URL_PATTERNS,
+    PROFILE_TITLE_KEYWORDS,
 )
 
 SEEN_JOBS_FILE = Path(__file__).parent / "data" / "seen_jobs.json"
@@ -57,6 +59,29 @@ def _is_duplicate(job_title: str, existing_jobs: list[dict]) -> bool:
     return False
 
 
+def _is_profile_page(url: str, title: str) -> bool:
+    """Detect if a URL/title is a person's profile, news article, or non-job page."""
+    url_lower = url.lower()
+
+    # LinkedIn: only allow /jobs/ URLs — reject posts, articles, profiles, company pages
+    if "linkedin.com" in url_lower:
+        if "/jobs/" not in url_lower and "/job/" not in url_lower:
+            return True
+
+    # Check URL patterns that indicate profiles/CVs
+    for pattern in PROFILE_URL_PATTERNS:
+        if pattern.lower() in url_lower:
+            return True
+
+    # Check title patterns that indicate non-job content
+    title_lower = title.lower()
+    for kw in PROFILE_TITLE_KEYWORDS:
+        if kw.lower() in title_lower:
+            return True
+
+    return False
+
+
 def _relevance_score(title: str, text: str) -> int:
     """Score a job posting's relevance. Higher is better. Negative means skip."""
     content = (title + " " + text).lower()
@@ -95,13 +120,17 @@ def search_jobs(exa_api_key: str, days_back: int = 7) -> list[dict]:
 
     for query, is_primary in all_queries:
         try:
-            results = exa.search_and_contents(
+            search_kwargs = dict(
                 query=query,
                 num_results=10,
                 start_published_date=start_date,
                 text={"max_characters": 5000},
                 highlights={"num_sentences": 5},
             )
+            if JOB_DOMAINS:
+                search_kwargs["include_domains"] = JOB_DOMAINS
+
+            results = exa.search_and_contents(**search_kwargs)
 
             for result in results.results:
                 jid = _job_id(result.url)
@@ -109,6 +138,11 @@ def search_jobs(exa_api_key: str, days_back: int = 7) -> list[dict]:
                     continue
 
                 title = result.title or ""
+
+                # Skip profiles, CVs, and news articles
+                if _is_profile_page(result.url, title):
+                    continue
+
                 text = result.text or ""
                 highlights = ""
                 if hasattr(result, "highlights") and result.highlights:
